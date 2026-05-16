@@ -80,6 +80,16 @@ export const translations = {
     failedToSaveRecipe: 'Не вдалось зберегти рецепт',
     recipeCreated: 'Рецепт створено!',
     recipeUpdated: 'Рецепт оновлено!',
+    tabManual: 'Вручну',
+    tabPaste: 'З тексту',
+    pasteRecipeHint: 'Вставте повний текст рецепту — з месенджера, нотаток або сайту. ШІ розпізнає назву, інгредієнти, кроки та інше.',
+    pasteRecipePlaceholder: 'Вставте рецепт сюди…',
+    parseRecipe: 'Розпізнати рецепт',
+    parsingRecipe: 'Розпізнавання…',
+    recipeParsed: 'Форму заповнено! Перевірте дані перед збереженням.',
+    pasteTextRequired: 'Вставте текст рецепту',
+    openAiKeyMissing: 'Додайте VITE_OPENAI_API_KEY у файл .env',
+    parseRecipeFailed: 'Не вдалось розпізнати рецепт. Спробуйте ще раз або заповніть вручну.',
 
     // Recipe modal
     totalTime: 'Загальний час',

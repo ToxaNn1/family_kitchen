@@ -1,11 +1,14 @@
 import { useState, useRef, useCallback } from 'react';
 import {
-  X, Plus, Trash2, Upload, GripVertical, ChevronDown
+  X, Plus, Trash2, Upload, GripVertical, ChevronDown, Sparkles
 } from 'lucide-react';
 import type { Recipe, RecipeIngredient, RecipeStep } from '../lib/database.types';
 import { CATEGORIES, DIFFICULTIES, UNITS } from '../lib/constants';
 import { createRecipe, updateRecipe, uploadRecipeImage } from '../lib/api';
 import { translations } from '../lib/i18n';
+import { parseRecipeFromText, type ParsedRecipeDraft } from '../lib/parseRecipeText';
+
+type FormTab = 'manual' | 'paste';
 
 type IngredientDraft = Omit<RecipeIngredient, 'id' | 'recipe_id'>;
 type StepDraft = Omit<RecipeStep, 'id' | 'recipe_id'>;
@@ -106,11 +109,53 @@ export default function RecipeForm({ recipe, onSave, onCancel, addToast }: Recip
     })) ?? [blankStep(1)]
   );
 
+  const [activeTab, setActiveTab] = useState<FormTab>('manual');
+  const [bulkText, setBulkText] = useState('');
+  const [parsing, setParsing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [dragStepIdx, setDragStepIdx] = useState<number | null>(null);
   const [dragOverStepIdx, setDragOverStepIdx] = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const applyParsedRecipe = (parsed: ParsedRecipeDraft) => {
+    setTitle(parsed.title);
+    setDescription(parsed.description);
+    setCategory(parsed.category);
+    setDifficulty(parsed.difficulty);
+    setPrepTime(parsed.prep_time_minutes);
+    setCookTime(parsed.cook_time_minutes);
+    setPortions(parsed.portions);
+    setNotes(parsed.notes);
+    setTags(parsed.tags);
+    setAllergens(parsed.allergens);
+    setLabels(parsed.labels);
+    setIngredients(parsed.ingredients);
+    setSteps(parsed.steps);
+    setActiveTab('manual');
+  };
+
+  const handleParseBulk = async () => {
+    if (!bulkText.trim()) {
+      addToast(t.pasteTextRequired, 'error');
+      return;
+    }
+    setParsing(true);
+    try {
+      const parsed = await parseRecipeFromText(bulkText);
+      applyParsedRecipe(parsed);
+      addToast(t.recipeParsed);
+    } catch (err) {
+      const code = err instanceof Error ? err.message : '';
+      if (code === 'OPENAI_KEY_MISSING') {
+        addToast(t.openAiKeyMissing, 'error');
+      } else {
+        addToast(t.parseRecipeFailed, 'error');
+      }
+    } finally {
+      setParsing(false);
+    }
+  };
 
   const handleImageFile = useCallback(async (file: File) => {
     if (!file.type.startsWith('image/')) return;
@@ -243,7 +288,43 @@ export default function RecipeForm({ recipe, onSave, onCancel, addToast }: Recip
           </button>
         </div>
 
+        <div
+          className="flex gap-1 px-5 pb-3"
+          style={{ borderBottom: '1px solid var(--color-border-light)', background: 'var(--color-card)' }}
+        >
+          {(['manual', 'paste'] as const).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setActiveTab(tab)}
+              className="flex-1 py-2 px-3 text-sm font-medium rounded-lg transition-colors"
+              style={{
+                background: activeTab === tab ? 'var(--color-accent-light)' : 'transparent',
+                color: activeTab === tab ? 'var(--color-accent)' : 'var(--color-text-muted)',
+              }}
+            >
+              {tab === 'manual' ? t.tabManual : t.tabPaste}
+            </button>
+          ))}
+        </div>
+
         <div className="overflow-y-auto flex-1 p-5 space-y-6">
+          {activeTab === 'paste' ? (
+            <div className="space-y-4">
+              <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                {t.pasteRecipeHint}
+              </p>
+              <textarea
+                className="input-base resize-y w-full text-sm"
+                rows={16}
+                value={bulkText}
+                onChange={(e) => setBulkText(e.target.value)}
+                placeholder={t.pasteRecipePlaceholder}
+                style={{ minHeight: 280 }}
+              />
+            </div>
+          ) : (
+          <>
           {/* Image upload */}
           <div>
             <label className="block text-sm font-medium mb-2" style={{ color: 'var(--color-text-secondary)' }}>{t.photo}</label>
@@ -463,6 +544,8 @@ export default function RecipeForm({ recipe, onSave, onCancel, addToast }: Recip
               <TagInput tags={labels} onChange={setLabels} placeholder={t.labelsList} />
             </div>
           </div>
+          </>
+          )}
         </div>
 
         {/* Footer */}
@@ -471,14 +554,27 @@ export default function RecipeForm({ recipe, onSave, onCancel, addToast }: Recip
           style={{ borderTop: '1px solid var(--color-border-light)', background: 'var(--color-card)' }}
         >
           <button className="btn-secondary flex-1 justify-center" onClick={onCancel}>{t.cancel}</button>
-          <button
-            className="btn-primary flex-1 justify-center"
-            onClick={handleSave}
-            disabled={saving}
-            style={{ opacity: saving ? 0.7 : 1 }}
-          >
-            {saving ? t.saving : isEdit ? t.saveChanges : t.createRecipe}
-          </button>
+          {activeTab === 'paste' ? (
+            <button
+              type="button"
+              className="btn-primary flex-1 justify-center gap-2"
+              onClick={handleParseBulk}
+              disabled={parsing}
+              style={{ opacity: parsing ? 0.7 : 1 }}
+            >
+              <Sparkles size={16} />
+              {parsing ? t.parsingRecipe : t.parseRecipe}
+            </button>
+          ) : (
+            <button
+              className="btn-primary flex-1 justify-center"
+              onClick={handleSave}
+              disabled={saving}
+              style={{ opacity: saving ? 0.7 : 1 }}
+            >
+              {saving ? t.saving : isEdit ? t.saveChanges : t.createRecipe}
+            </button>
+          )}
         </div>
       </div>
     </div>
